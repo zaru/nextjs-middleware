@@ -1,3 +1,6 @@
+import { auth } from "@/lib/auth";
+import type { NextApiRequest } from "next";
+import type { NextMiddlewareResult } from "next/dist/server/web/types";
 import { type NextMiddleware, NextResponse } from "next/server";
 import type { NextFetchEvent, NextRequest } from "next/server";
 
@@ -48,59 +51,76 @@ import type { NextFetchEvent, NextRequest } from "next/server";
 // export default middlewareHigherA(middlewareHigherB(middlewareHigherC));
 
 // Higher Order Middlewareを使いやすくチェインするようにした実装例
-type MiddlewareFactory = (middleware: NextMiddleware) => NextMiddleware;
-function chainMiddlewares(
-  functions: MiddlewareFactory[] = [],
+export type CustomMiddleware = (
+  request: NextRequest,
+  event: NextFetchEvent,
+  response: NextResponse,
+) => NextMiddlewareResult | Promise<NextMiddlewareResult>;
+
+type MiddlewareFactory = (middleware: CustomMiddleware) => CustomMiddleware;
+
+export function chain(
+  functions: MiddlewareFactory[],
   index = 0,
-): NextMiddleware {
+): CustomMiddleware {
   const current = functions[index];
+
   if (current) {
-    const next = chainMiddlewares(functions, index + 1);
+    const next = chain(functions, index + 1);
     return current(next);
   }
-  // 最後に積んだレスポンス変更処理を実行する
-  // とりあえず実装してみたけど、ミドルウェアのユニットテストが難しくなるな…
-  return () =>
-    responseStack.reduce((res, stack) => stack(res), NextResponse.next());
+
+  return (
+    request: NextRequest,
+    event: NextFetchEvent,
+    response: NextResponse,
+  ) => {
+    return response;
+  };
 }
-const responseStack: ((response: NextResponse) => NextResponse)[] = [];
-export function middlewareHigherA(middleware: NextMiddleware) {
-  return async (request: NextRequest, event: NextFetchEvent) => {
+export function middlewareHigherA(middleware: CustomMiddleware) {
+  return async (
+    request: NextRequest,
+    event: NextFetchEvent,
+    response: NextResponse = NextResponse.next(),
+  ) => {
     console.log("Higher Middleware A called");
+    response.cookies.set("auth", "ok");
+    return middleware(request, event, response);
+  };
+}
+function middlewareHigherB(middleware: CustomMiddleware) {
+  return async (
+    request: NextRequest,
+    event: NextFetchEvent,
+    response: NextResponse = NextResponse.next(),
+  ) => {
+    console.log("Higher Middleware B called");
     const token = request.headers.get("Authorization");
     if (token === "Bearer secret") {
-      // 途中でCookieをセットしたりしたいが、これ以外で良い方法が思いつかない
-      // この時点で後続ミドルウェアを処理させないならreturn NextResponse.next()で良いが…
-      responseStack.push((response: NextResponse) => {
-        response.cookies.set("auth", "ok");
-        return response;
-      });
-      request.cookies.set("foo", "bar");
-      return middleware(request, event);
+      return middleware(request, event, response);
     }
+
     return Response.json(
       { success: false, message: "authentication failed" },
       { status: 401 },
     );
   };
 }
-function middlewareHigherB(middleware: NextMiddleware) {
-  return async (request: NextRequest, event: NextFetchEvent) => {
-    console.log("Higher Middleware B called");
-    return middleware(request, event);
-  };
-}
-function middlewareHigherC(middleware: NextMiddleware) {
-  return async (request: NextRequest, event: NextFetchEvent) => {
+function middlewareHigherC(middleware: CustomMiddleware) {
+  return async (
+    request: NextRequest,
+    event: NextFetchEvent,
+    response: NextResponse = NextResponse.next(),
+  ) => {
     console.log("Higher Middleware C called");
-    return middleware(request, event);
+    return middleware(request, event, response);
   };
 }
-export default chainMiddlewares([
-  middlewareHigherA,
-  middlewareHigherB,
-  middlewareHigherC,
-]);
+export default chain([middlewareHigherA, middlewareHigherB, middlewareHigherC]);
+
+// NextAuth公式ドキュメントのMiddlewareで認証させるパターン
+// export { auth as middleware } from "./lib/auth";
 
 export const config = {
   // 静的ファイルの場合はMiddlewareを適用しない
