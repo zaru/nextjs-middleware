@@ -7,8 +7,7 @@ import {
 
 import { auth as nextAuthMiddleware } from "@/lib/auth";
 import { withMiddlewareAuthRequired } from "@auth0/nextjs-auth0/edge";
-import { NextApiRequest } from "next";
-import type { NextAuthRequest } from "next-auth/lib";
+import { authMiddleware } from "@clerk/nextjs";
 
 type MiddlewareFactory = (middleware: NextMiddleware) => NextMiddleware;
 export function chain(
@@ -162,6 +161,16 @@ function requireNextAuth(middleware: NextMiddleware) {
   };
 }
 
+function requireClerk(middleware: NextMiddleware) {
+  return async (request: NextRequest, event: NextFetchEvent) => {
+    const { pathname } = new URL(request.url);
+    if (/^\/clerk(\/|$)/.test(pathname)) {
+      return authMiddleware()(request, event);
+    }
+    return middleware(request, event);
+  };
+}
+
 function heavyTask(middleware: NextMiddleware) {
   return async (request: NextRequest, event: NextFetchEvent) => {
     console.log("Higher Middleware heavyTask called");
@@ -179,6 +188,7 @@ export const middleware = chain([
   heavyTask,
   requireAuth0,
   requireNextAuth,
+  requireClerk,
   restrictIp,
   requireBasicAuth,
   requireToken,
