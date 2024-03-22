@@ -1,3 +1,4 @@
+import { withMiddlewareAuthRequired } from "@auth0/nextjs-auth0/edge";
 import {
   type NextFetchEvent,
   type NextRequest,
@@ -94,6 +95,11 @@ export async function basicMiddleware(
   // IP制限
   if (checkIpRestriction(request)) {
     return NextResponse.json("", { status: 403 });
+  }
+
+  // Auth0認証
+  if (/^\/auth0(\/|$)/.test(pathname)) {
+    return withMiddlewareAuthRequired()(request, event);
   }
 
   // BASIC認証
