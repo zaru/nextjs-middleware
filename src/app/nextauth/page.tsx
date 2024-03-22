@@ -1,3 +1,4 @@
+import { SignOutButton } from "@/app/nextauth/components/SignOutButton";
 import { auth } from "@/lib/auth";
 
 export default async function Page() {
@@ -7,6 +8,7 @@ export default async function Page() {
       <div>
         protected page
         <div>login: {session.user.email}</div>
+        <SignOutButton />
       </div>
     );
   }

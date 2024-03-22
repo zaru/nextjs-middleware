@@ -1,5 +1,5 @@
-export { basicMiddleware as middleware } from "@/middlewares/basicMiddleware";
-// export { middleware } from "@/middlewares/hofMiddleware";
+// export { basicMiddleware as middleware } from "@/middlewares/basicMiddleware";
+export { middleware } from "@/middlewares/hofMiddleware";
 // export { auth as middleware } from "./lib/auth";
 
 // import { authMiddleware } from "@clerk/nextjs";
