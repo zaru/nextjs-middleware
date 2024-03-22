@@ -1,9 +1,11 @@
 import { withMiddlewareAuthRequired } from "@auth0/nextjs-auth0/edge";
+import type { NextApiRequest } from "next";
 import {
   type NextFetchEvent,
   type NextRequest,
   NextResponse,
 } from "next/server";
+import { auth as nextAuthMiddleware } from "../lib/auth";
 
 async function heavyTask() {
   console.log("start heavyTask.", new Date());
@@ -100,6 +102,12 @@ export async function basicMiddleware(
   // Auth0認証
   if (/^\/auth0(\/|$)/.test(pathname)) {
     return withMiddlewareAuthRequired()(request, event);
+  }
+
+  // NextAuth認証
+  if (/^\/nextauth(\/|$)/.test(pathname)) {
+    // @ts-ignore
+    return nextAuthMiddleware(request);
   }
 
   // BASIC認証
