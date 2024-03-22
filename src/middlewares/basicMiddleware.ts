@@ -1,5 +1,6 @@
 import { withMiddlewareAuthRequired } from "@auth0/nextjs-auth0/edge";
 import { authMiddleware } from "@clerk/nextjs";
+import { withAuth } from "@kinde-oss/kinde-auth-nextjs/middleware";
 import {
   type NextFetchEvent,
   type NextRequest,
@@ -113,6 +114,14 @@ export async function basicMiddleware(
   // NextAuth認証
   if (/^\/clerk(\/|$)/.test(pathname)) {
     return authMiddleware()(request, event);
+  }
+
+  // Kinde認証
+  if (/^\/kinde(\/|$)/.test(pathname)) {
+    // TODO: CallbackURLを変更できない仕様になっているため/kinde-apiパスだと動かない
+    return withAuth(request, {
+      loginPage: "/kinde-api/auth/login",
+    });
   }
 
   // BASIC認証
