@@ -5,7 +5,10 @@ import {
   NextResponse,
 } from "next/server";
 
+import { auth as nextAuthMiddleware } from "@/lib/auth";
 import { withMiddlewareAuthRequired } from "@auth0/nextjs-auth0/edge";
+import { NextApiRequest } from "next";
+import type { NextAuthRequest } from "next-auth/lib";
 
 type MiddlewareFactory = (middleware: NextMiddleware) => NextMiddleware;
 export function chain(
@@ -148,6 +151,17 @@ function requireAuth0(middleware: NextMiddleware) {
   };
 }
 
+function requireNextAuth(middleware: NextMiddleware) {
+  return async (request: NextRequest, event: NextFetchEvent) => {
+    const { pathname } = new URL(request.url);
+    if (/^\/nextauth(\/|$)/.test(pathname)) {
+      // @ts-ignore
+      return nextAuthMiddleware(request) as unknown as NextResponse;
+    }
+    return middleware(request, event);
+  };
+}
+
 function heavyTask(middleware: NextMiddleware) {
   return async (request: NextRequest, event: NextFetchEvent) => {
     console.log("Higher Middleware heavyTask called");
@@ -160,9 +174,11 @@ function heavyTask(middleware: NextMiddleware) {
   };
 }
 
+// @ts-ignore
 export const middleware = chain([
   heavyTask,
   requireAuth0,
+  requireNextAuth,
   restrictIp,
   requireBasicAuth,
   requireToken,
