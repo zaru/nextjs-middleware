@@ -6,9 +6,24 @@ import { type NextFetchEvent, NextRequest } from "next/server";
 import { encryptedCookie } from "./utils/auth0_cookie";
 
 const spy = spyOn(console, "log");
+
+describe("Heavy task", () => {
+  test("Done task", async () => {
+    const request = new NextRequest("http://localhost:3000/");
+    const event = new FetchEvent(request);
+    const response = await middleware(
+      request,
+      event as unknown as NextFetchEvent,
+    );
+    expect(response?.ok).toBe(true);
+    await sleep(1100);
+    expect(spy.mock.calls.flat()).toContain("Higher Middleware heavyTask done");
+  });
+});
+
 describe("Restrict IP", () => {
   test("Deny IP", async () => {
-    const request = new NextRequest("http://localhost:3000/");
+    const request = new NextRequest("http://localhost:3000/restrict-ip");
     const event = new FetchEvent(request);
     const response = await middleware(
       request,
@@ -16,19 +31,14 @@ describe("Restrict IP", () => {
     );
     expect(response?.ok).toBe(false);
     expect(response?.status).toBe(403);
-    await sleep(1000);
-    expect(spy.mock.calls.flat()).toContain("Higher Middleware heavyTask done");
   });
 
   test("Allow IP", async () => {
-    const request = new NextRequest(
-      new Request("http://localhost:3000/users/100", {
-        headers: {
-          method: "GET",
-          "x-forwarded-for": "::1",
-        },
-      }),
-    );
+    const request = new NextRequest("http://localhost:3000/restrict-ip", {
+      headers: {
+        "x-forwarded-for": "::1",
+      },
+    });
     const event = new FetchEvent(request);
     const response = await middleware(
       request,
@@ -69,5 +79,19 @@ describe("Auth0", () => {
     );
     expect(response?.ok).toBe(true);
     expect(response?.status).toBe(200);
+  });
+});
+
+describe("Redirect path", () => {
+  test("/accounts to /users", async () => {
+    const request = new NextRequest("http://localhost:3000/accounts/100");
+    const event = new FetchEvent(request);
+    const response = await middleware(
+      request,
+      event as unknown as NextFetchEvent,
+    );
+    expect(response?.ok).toBe(false);
+    expect(response?.headers.get("location")).toInclude("/users/100");
+    expect(response?.status).toBe(307);
   });
 });

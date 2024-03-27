@@ -20,7 +20,6 @@ export function chain(
     const next = chain(functions, index + 1);
     return current(next);
   }
-
   return () => {
     console.log("chain end, return NextResponse.next()");
     return NextResponse.next();
@@ -29,12 +28,17 @@ export function chain(
 
 function restrictIp(middleware: NextMiddleware) {
   return async (request: NextRequest, event: NextFetchEvent) => {
-    console.log("Higher Middleware restrictIp called");
-    const ip = request.ip ?? request.headers.get("x-forwarded-for") ?? "";
-    // const ok = "120.0.0.1";
-    const ok = "::1";
-    if (ip !== ok) {
-      return NextResponse.json("", { status: 403 });
+    const { pathname } = new URL(request.url);
+    if (/^\/restrict-ip(\/|$)/.test(pathname)) {
+      console.log("Higher Middleware restrictIp called");
+      const ip = request.ip ?? request.headers.get("x-forwarded-for") ?? "";
+      // const ok = "120.0.0.1";
+      const ok = "::1";
+      if (ip !== ok) {
+        return NextResponse.json("", { status: 403 });
+      }
+    } else {
+      console.log("Higher Middleware restrictIp skipped");
     }
     return middleware(request, event);
   };
