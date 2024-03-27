@@ -95,3 +95,16 @@ describe("Redirect path", () => {
     expect(response?.status).toBe(307);
   });
 });
+
+describe("AB test", () => {
+  test("ab", async () => {
+    const request = new NextRequest("http://localhost:3000/ab");
+    const event = new FetchEvent(request);
+    const response = await middleware(
+      request,
+      event as unknown as NextFetchEvent,
+    );
+    expect(response?.ok).toBe(true);
+    // expect(response?.headers.get("set-cookie")).toInclude("ab=%2Fab; Path=/");
+  });
+});
