@@ -1,36 +1,73 @@
-import type { NextFetchEvent } from "next/dist/server/web/spec-extension/fetch-event";
-import { NextMiddlewareResult } from "next/dist/server/web/types";
-import { type NextMiddleware, NextRequest } from "next/server";
-import { expect, test, vi } from "vitest";
-import { middlewareHigherA } from "../src/middleware";
+import { describe, expect, spyOn, test } from "bun:test";
+import { middleware } from "@/middlewares/hofMiddleware";
+import { sleep } from "bun";
+import { FetchEvent } from "next/dist/compiled/@edge-runtime/primitives";
+import { type NextFetchEvent, NextRequest } from "next/server";
+import { encryptedCookie } from "./utils/auth0_cookie";
 
-// test("adds 1 + 2 to equal 3", () => {
-//   const request = new NextRequest("http://localhost:3000/");
-//   const consoleSpy = vi.spyOn(console, "log");
-//   middlewareA(request);
-//   expect(consoleSpy).toHaveBeenCalledWith("Middleware A called");
-//   consoleSpy.mockRestore();
-// });
+const spy = spyOn(console, "log");
+describe("Restrict IP", () => {
+  test("Deny IP", async () => {
+    const request = new NextRequest("http://localhost:3000/");
+    const event = new FetchEvent(request);
+    const response = await middleware(
+      request,
+      event as unknown as NextFetchEvent,
+    );
+    expect(response?.ok).toBe(false);
+    expect(response?.status).toBe(403);
+    await sleep(1000);
+    expect(spy.mock.calls.flat()).toContain("Higher Middleware heavyTask done");
+  });
 
-test("adds 1 + 2 to equal 3", async () => {
-  const request = new NextRequest("http://localhost:3000/");
-  const response = await middlewareHigherA(() => {})(
-    request,
-    {} as NextFetchEvent,
-  );
-  expect(response?.status).toBe(401);
-  expect(JSON.parse((await response?.text()) || "{}")).toStrictEqual({
-    success: false,
-    message: "authentication failed",
+  test("Allow IP", async () => {
+    const request = new NextRequest(
+      new Request("http://localhost:3000/users/100", {
+        headers: {
+          method: "GET",
+          "x-forwarded-for": "::1",
+        },
+      }),
+    );
+    const event = new FetchEvent(request);
+    const response = await middleware(
+      request,
+      event as unknown as NextFetchEvent,
+    );
+    expect(response?.ok).toBe(true);
+    expect(response?.status).toBe(200);
   });
 });
-test("adds 1 + 2 to equal 3", async () => {
-  const request = new NextRequest("http://localhost:3000/", {
-    headers: { Authorization: "Bearer secret" },
+
+describe("Auth0", () => {
+  test("Deny", async () => {
+    const request = new NextRequest("http://localhost:3000/auth0");
+    const event = new FetchEvent(request);
+    const response = await middleware(
+      request,
+      event as unknown as NextFetchEvent,
+    );
+    expect(response?.ok).toBe(false);
+    expect(response?.headers.get("location")).toInclude("/api/auth/login");
+    expect(response?.status).toBe(307);
   });
-  const response = await middlewareHigherA(() => {})(
-    request,
-    {} as NextFetchEvent,
-  );
-  console.log("a", response);
+  test("Logged in", async () => {
+    const dummyJwt = await encryptedCookie(
+      "test user",
+      "user@example.com",
+      "dummy|1234",
+    );
+    const request = new NextRequest("http://localhost:3000/auth0", {
+      headers: {
+        cookie: `appSession=${dummyJwt};`,
+      },
+    });
+    const event = new FetchEvent(request);
+    const response = await middleware(
+      request,
+      event as unknown as NextFetchEvent,
+    );
+    expect(response?.ok).toBe(true);
+    expect(response?.status).toBe(200);
+  });
 });
